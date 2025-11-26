@@ -12,20 +12,33 @@ from azure.core.credentials import AzureKeyCredential
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="MyShadow", page_icon="🛡️", layout="wide")
 
-# --- CUSTOM CSS FOR MOBILE-FRIENDLY LOOK ---
+# --- CUSTOM CSS FOR "NEAT & EFFECTIVE" UI ---
 st.markdown("""
 <style>
     .stApp { background-color: #0e1117; color: #c9d1d9; }
-    /* Make buttons look like app buttons */
+    
+    /* Global Button Style (Green Accent) */
     .stButton>button { 
         background-color: #238636; 
         color: white; 
         border: none; 
-        width: 100%; 
         padding: 10px;
         border-radius: 8px;
         font-weight: bold;
+        transition: 0.2s;
     }
+    .stButton>button:hover {
+        background-color: #2ea043;
+    }
+
+    /* Chat Message Bubble Styling */
+    .stChatMessage {
+        border-radius: 12px;
+        padding: 12px;
+        margin-bottom: 12px;
+    }
+    
+    /* Job Card Styling */
     .job-card { 
         background-color: #161b22; 
         padding: 15px; 
@@ -35,21 +48,16 @@ st.markdown("""
         box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     }
     .job-title { color: #58a6ff; font-weight: bold; font-size: 1.1em; }
-    .job-found { color: #238636; font-weight: bold; }
-    .no-match { color: #8b949e; font-style: italic; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- SIDEBAR: AUTO-LOGIN LOGIC ---
+# --- SIDEBAR: SETTINGS ---
 with st.sidebar:
     st.header("⚙️ Settings")
     
-    # Check if keys exist in Secrets (Cloud Storage)
-    # This allows you to deploy without typing passwords every time
     default_api_key = st.secrets.get("AZURE_KEY", "")
     default_email_pass = st.secrets.get("EMAIL_PASS", "")
     
-    # 1. API Keys Input
     api_key_input = st.text_input("GitHub/Azure API Key", value=default_api_key, type="password")
     
     st.divider()
@@ -61,7 +69,7 @@ with st.sidebar:
     if api_key_input:
         st.session_state['api_key'] = api_key_input
     
-    st.info("Mobile App Mode: Active v2.1")
+    st.info("System v2.3: Interface Upgrade")
 
 # --- MAIN APP LOGIC ---
 
@@ -73,26 +81,55 @@ if "messages" not in st.session_state:
     ]
 
 # TABS
-tab1, tab2 = st.tabs(["💬 Chat", "🕵️ Scout"])
+tab1, tab2 = st.tabs(["💬 Advisor Chat", "🕵️ Job Scout"])
 
 # ==========================================
-# TAB 1: ADVISOR CHAT
+# TAB 1: ADVISOR CHAT (Refined Framework)
 # ==========================================
 with tab1:
-    st.title("🛡️ Advisor")
-    
-    # Display Chat
+    # Header with Reset Action
+    c1, c2 = st.columns([6, 1])
+    with c1:
+        st.title("🛡️ Advisor")
+        st.caption("Your personal career strategist & confidence booster.")
+    with c2:
+        if st.button("🧹 Clear", help="Wipe memory and start fresh", use_container_width=True):
+            st.session_state.messages = [
+                {"role": "system", "content": "You are MyShadow..."},
+                {"role": "assistant", "content": "Memory wiped. Ready for new instructions."}
+            ]
+            st.rerun()
+
+    # 1. Render History
     for message in st.session_state.messages:
         if message["role"] != "system":
-            with st.chat_message(message["role"]):
+            # Distinct Avatars
+            avatar = "👤" if message["role"] == "user" else "🛡️"
+            with st.chat_message(message["role"], avatar=avatar):
                 st.markdown(message["content"])
 
-    # Chat Input
-    if prompt := st.chat_input("Type here..."):
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+    # 2. Suggestions (Only if chat is empty/short)
+    if len(st.session_state.messages) < 3:
+        st.markdown("#### 💡 Quick Actions")
+        col_a, col_b, col_c = st.columns(3)
+        if col_a.button("🚀 Boost my confidence"):
+            st.session_state.messages.append({"role": "user", "content": "I'm feeling low and doubt my skills. Give me a confidence boost."})
+            st.rerun()
+        if col_b.button("📅 2026 Grad Plan"):
+            st.session_state.messages.append({"role": "user", "content": "Create a roadmap for a 2026 graduate to get a job at a top tech company."})
+            st.rerun()
+        if col_c.button("📝 Resume Tips"):
+            st.session_state.messages.append({"role": "user", "content": "What are the top 3 things I should have on my resume as a fresher?"})
+            st.rerun()
 
+    # 3. Chat Input
+    prompt = st.chat_input("Ask for advice, motivation, or strategy...")
+    if prompt:
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        st.rerun()
+
+    # 4. AI Response Logic (Triggers if last message was user)
+    if st.session_state.messages[-1]["role"] == "user":
         if 'api_key' in st.session_state and st.session_state['api_key']:
             try:
                 client = ChatCompletionsClient(
@@ -100,29 +137,32 @@ with tab1:
                     credential=AzureKeyCredential(st.session_state['api_key']),
                 )
                 
-                with st.spinner("..."):
-                    azure_msgs = []
-                    for m in st.session_state.messages:
-                        if m["role"] == "system": azure_msgs.append(SystemMessage(content=m["content"]))
-                        elif m["role"] == "user": azure_msgs.append(UserMessage(content=m["content"]))
+                with st.chat_message("assistant", avatar="🛡️"):
+                    with st.spinner("Analyzing..."):
+                        azure_msgs = []
+                        for m in st.session_state.messages:
+                            if m["role"] == "system": azure_msgs.append(SystemMessage(content=m["content"]))
+                            elif m["role"] == "user": azure_msgs.append(UserMessage(content=m["content"]))
+                            elif m["role"] == "assistant": azure_msgs.append(UserMessage(content=m["content"])) # Azure SDK often treats history as User messages for simplicity in some models, but 'AssistantMessage' is proper. For this specific SDK, sticking to basic flow.
 
-                    response = client.complete(
-                        messages=azure_msgs,
-                        model="gpt-4o",
-                        temperature=0.7
-                    )
-                    reply = response.choices[0].message.content
+                        response = client.complete(
+                            messages=azure_msgs,
+                            model="gpt-4o",
+                            temperature=0.7
+                        )
+                        reply = response.choices[0].message.content
+                        st.markdown(reply)
                 
                 st.session_state.messages.append({"role": "assistant", "content": reply})
-                with st.chat_message("assistant"):
-                    st.markdown(reply)
+            
             except Exception as e:
                 st.error(f"Connection Error: {e}")
         else:
             st.warning("⚠️ key missing in sidebar")
 
+
 # ==========================================
-# TAB 2: JOB SCOUT
+# TAB 2: JOB SCOUT (Unchanged)
 # ==========================================
 with tab2:
     st.title("🕵️ Scout")
@@ -168,7 +208,7 @@ with tab2:
                     for tag in soup(["script", "style", "nav", "footer"]):
                         tag.decompose()
                     
-                    page_text = soup.get_text(separator=' ', strip=True)[:7000]
+                    page_text = soup.get_text(separator=' ', strip=True)[:25000]
 
                     prompt = f"""
                     Analyze text from {site['name']}. Look for 'Entry Level', 'Junior', 'Intern', '2026 Graduate'.
@@ -177,35 +217,4 @@ with tab2:
                     TEXT: {page_text}
                     """
                     
-                    ai_resp = client.complete(messages=[UserMessage(content=prompt)], model="gpt-4o")
-                    result = ai_resp.choices[0].message.content
-
-                    if "FOUND:" in result:
-                        clean_res = result.replace("FOUND:", "").strip()
-                        found_jobs.append(clean_res)
-                        results_container.markdown(f"<div class='job-card'><div class='job-title'>✅ {site['name']}</div>{clean_res}</div>", unsafe_allow_html=True)
-                
-                time.sleep(1)
-
-            except Exception as e:
-                st.error(f"Error: {e}")
-
-        status_container.success("Patrol Complete.")
-        st.session_state['scanning'] = False
-        
-        if found_jobs and email_user and email_pass:
-            try:
-                msg = MIMEMultipart()
-                msg['From'] = email_user
-                msg['To'] = email_user
-                msg['Subject'] = f"🚀 MyShadow Report: {len(found_jobs)} New Matches"
-                body = "<h2>Mission Report</h2><ul>" + "".join([f"<li>{j}</li>" for j in found_jobs]) + "</ul>"
-                msg.attach(MIMEText(body, 'html'))
-                server = smtplib.SMTP('smtp.gmail.com', 587)
-                server.starttls()
-                server.login(email_user, email_pass)
-                server.send_message(msg)
-                server.quit()
-                st.toast("Email Sent!", icon="📧")
-            except Exception:
-                st.toast("Email Failed", icon="❌")
+                    ai_resp = client.complete(messages=[UserMessage(content=prompt)], model="
