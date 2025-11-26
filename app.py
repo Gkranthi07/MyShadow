@@ -217,4 +217,35 @@ with tab2:
                     TEXT: {page_text}
                     """
                     
-                    ai_resp = client.complete(messages=[UserMessage(content=prompt)], model="
+                    ai_resp = client.complete(messages=[UserMessage(content=prompt)], model="gpt-4o")
+                    result = ai_resp.choices[0].message.content
+
+                    if "FOUND:" in result:
+                        clean_res = result.replace("FOUND:", "").strip()
+                        found_jobs.append(clean_res)
+                        results_container.markdown(f"<div class='job-card'><div class='job-title'>✅ {site['name']}</div>{clean_res}</div>", unsafe_allow_html=True)
+                
+                time.sleep(1)
+
+            except Exception as e:
+                st.error(f"Error: {e}")
+
+        status_container.success("Patrol Complete.")
+        st.session_state['scanning'] = False
+        
+        if found_jobs and email_user and email_pass:
+            try:
+                msg = MIMEMultipart()
+                msg['From'] = email_user
+                msg['To'] = email_user
+                msg['Subject'] = f"🚀 MyShadow Report: {len(found_jobs)} New Matches"
+                body = "<h2>Mission Report</h2><ul>" + "".join([f"<li>{j}</li>" for j in found_jobs]) + "</ul>"
+                msg.attach(MIMEText(body, 'html'))
+                server = smtplib.SMTP('smtp.gmail.com', 587)
+                server.starttls()
+                server.login(email_user, email_pass)
+                server.send_message(msg)
+                server.quit()
+                st.toast("Email Sent!", icon="📧")
+            except Exception:
+                st.toast("Email Failed", icon="❌")
